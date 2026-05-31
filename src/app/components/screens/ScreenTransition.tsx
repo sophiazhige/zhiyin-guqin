@@ -22,6 +22,7 @@ export function ScreenTransition() {
   const [error, setError] = useState("");
   const called = useRef(false);
   const readyRef = useRef(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (called.current) return;
@@ -85,11 +86,16 @@ export function ScreenTransition() {
         readyRef.current = true;
         const elapsed = Date.now() - startTime;
         const remaining = Math.max(0, MIN_DISPLAY_MS - elapsed);
-        setTimeout(() => nav.goTo(PAGES.DIAGNOSIS), remaining);
+        timerRef.current = setTimeout(() => nav.goTo(PAGES.DIAGNOSIS), remaining);
       }
     }
 
     runDiagnosis();
+
+    // 卸载时清除定时器：避免用户手动翻页后，旧的自动跳转把页面拽回辨证结果
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
