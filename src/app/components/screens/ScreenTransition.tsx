@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef } from "react";
 import { ScreenWrapper, EL_COLORS } from "../SharedElements";
 import { ChevronLeft } from "lucide-react";
 import { useNav, PAGES } from "../../navigation";
@@ -19,7 +19,6 @@ const MIN_DISPLAY_MS = 6000;
 export function ScreenTransition() {
   const nav = useNav();
   const { intake, setDiagnosis } = useIntake();
-  const [error, setError] = useState("");
   const called = useRef(false);
   const readyRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -73,7 +72,6 @@ export function ScreenTransition() {
         setDiagnosis(result);
       } catch (e) {
         console.error("诊断接口失败，使用本地兜底", e);
-        setError("网络异常，已为你使用本地推算");
         const element = "wood";
         setDiagnosis({
           element,
@@ -145,8 +143,6 @@ export function ScreenTransition() {
         <p className="text-sm text-foreground/70 tracking-[0.1em] text-center px-12 leading-loose">
           倾听经络的回响<br />寻找五音的共鸣
         </p>
-
-        {error && <p className="mt-4 text-xs text-muted-foreground tracking-widest">{error}</p>}
       </div>
     </ScreenWrapper>
   );
