@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>知音 Agent Flow</title>
+    <style>
+      :root {
+        --bg: #f5f2ea;
+        --card: #f0e5d0;
+        --line: #c9bda5;
+        --ink: #37271d;
+        --muted: #7f6d57;
+        --accent: #9f3429;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: linear-gradient(180deg, #f6f3ec, #eadfc7);
+        font-family: "PingFang SC", "Noto Serif SC", serif;
+        color: var(--ink);
+      }
+      .page {
+        max-width: 920px;
+        margin: 0 auto;
+        padding: 32px 18px 60px;
+      }
+      .header {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        align-items: flex-start;
+        margin-bottom: 18px;
+      }
+      .title {
+        margin: 0;
+        font-size: 42px;
+        color: var(--accent);
+      }
+      .subtitle {
+        margin-top: 10px;
+        line-height: 1.8;
+        color: var(--muted);
+      }
+      .status {
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 10px 14px;
+        background: rgba(255,255,255,0.42);
+        font-size: 13px;
+        color: var(--muted);
+        white-space: nowrap;
+      }
+      .card {
+        background: rgba(240, 229, 208, 0.9);
+        border: 1px solid var(--line);
+        border-radius: 24px;
+        padding: 20px;
+        box-shadow: 0 16px 36px rgba(55, 39, 29, 0.08);
+        margin-bottom: 18px;
+      }
+      .field { margin-bottom: 14px; }
+      label {
+        display: block;
+        margin-bottom: 6px;
+        font-size: 13px;
+        color: var(--muted);
+      }
+      input, textarea {
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 12px 14px;
+        font-size: 14px;
+        background: rgba(255,255,255,0.6);
+      }
+      textarea {
+        min-height: 150px;
+        resize: vertical;
+        line-height: 1.7;
+      }
+      .actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      .chatbox {
+        position: relative;
+      }
+      .recording {
+        margin-top: 8px;
+        font-size: 13px;
+        color: var(--muted);
+      }
+      button {
+        border: none;
+        border-radius: 999px;
+        padding: 11px 18px;
+        font-size: 14px;
+        cursor: pointer;
+        background: var(--accent);
+        color: #fff;
+      }
+      button.secondary {
+        background: transparent;
+        border: 1px solid var(--accent);
+        color: var(--accent);
+      }
+      .mic-btn {
+        width: 48px;
+        height: 48px;
+        padding: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+        border-radius: 50%;
+      }
+      .mic-btn.is-recording {
+        background: #c3382c;
+        box-shadow: 0 0 0 6px rgba(195, 56, 44, 0.15);
+      }
+      pre {
+        margin: 0;
+        padding: 12px;
+        border-radius: 16px;
+        border: 1px solid var(--line);
+        background: rgba(255,255,255,0.45);
+        white-space: pre-wrap;
+        word-break: break-word;
+        line-height: 1.7;
+        font-size: 13px;
+      }
+      .track {
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 14px;
+        background: rgba(255,255,255,0.45);
+        margin-bottom: 10px;
+      }
+      .track-title {
+        font-size: 18px;
+      }
+      .track-meta {
+        margin: 6px 0 10px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      audio {
+        width: 100%;
+        margin-top: 12px;
+      }
+      @media (max-width: 700px) {
+        .header {
+          flex-direction: column;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div class="header">
+        <div>
+          <h1 class="title">知音 Agent</h1>
+          <div class="subtitle">
+            一个输入框即可测试完整后端流：用户可以直接文字输入，或先语音输入转文字；第一步优先走语音转写，再由 LLM 输出 patient profile 与诊断，最后从曲库里挑出推荐曲目。
+          </div>
+          <div class="subtitle">
+            模型配置：__TOKENDANCE_STATUS__ · __TOKENDANCE_BASE_URL__
+          </div>
+        </div>
+        <div class="status" id="healthStatus">正在连接服务...</div>
+      </div>
+
+      <div class="card">
+        <div class="field">
+          <label for="userId">用户 ID</label>
+          <input id="userId" value="demo-user" />
+        </div>
+        <div class="field">
+          <label for="textInput">对话输入框</label>
+          <div class="chatbox">
+            <textarea id="textInput" placeholder="像 GPT 一样在这里直接输入；也可以点下面按钮开始说话，转写内容会进入同一个框，并且你可以继续修改。">最近总是睡不好，压力很大，脑子停不下来。</textarea>
+          </div>
+          <div id="recordingStatus" class="recording">当前可直接输入文字，也可以点击按钮开始说话。</div>
+        </div>
+        <div class="actions">
+          <button id="recordBtn" class="mic-btn" type="button" aria-label="开始语音输入" title="点击开始说话，再次点击停止">🎤</button>
+          <button id="submitBtn" type="button">提交给 Agent</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>转写结果</h3>
+        <pre id="transcriptionOutput">暂无结果</pre>
+      </div>
+
+      <div class="card">
+        <h3>Patient Profile</h3>
+        <pre id="profileOutput">暂无结果</pre>
+      </div>
+
+      <div class="card">
+        <h3>诊断结果</h3>
+        <pre id="diagnosisOutput">暂无结果</pre>
+      </div>
+
+      <div class="card">
+        <h3>推荐曲目</h3>
+        <div id="trackList">暂无结果</div>
+        <audio id="player" controls></audio>
+      </div>
+    </div>
+
+    <script>
+      const healthStatus = document.getElementById("healthStatus");
+      const textInput = document.getElementById("textInput");
+      const recordingStatus = document.getElementById("recordingStatus");
+      const transcriptionOutput = document.getElementById("transcriptionOutput");
+      const profileOutput = document.getElementById("profileOutput");
+      const diagnosisOutput = document.getElementById("diagnosisOutput");
+      const trackList = document.getElementById("trackList");
+      const player = document.getElementById("player");
+      const recordBtn = document.getElementById("recordBtn");
+      const submitBtn = document.getElementById("submitBtn");
+
+      let recognition = null;
+      let mediaRecorder = null;
+      let mediaStream = null;
+      let mediaChunks = [];
+      let speechPrefix = "";
+      let isRecording = false;
+      let useRealtimeRecognition = false;
+
+      function renderTracks(tracks) {
+        if (!tracks || !tracks.length) {
+          trackList.innerHTML = "暂无推荐曲目";
+          return;
+        }
+
+        trackList.innerHTML = "";
+        tracks.forEach((track) => {
+          const div = document.createElement("div");
+          div.className = "track";
+          div.innerHTML = `
+            <div class="track-title">${track.title}</div>
+            <div class="track-meta">${track.mode}调 · ${track.effect}</div>
+            <button type="button">播放</button>
+          `;
+          div.querySelector("button").onclick = () => {
+            player.src = track.preview_url;
+            player.play();
+          };
+          trackList.appendChild(div);
+        });
+      }
+
+      async function refreshHealth() {
+        try {
+          const response = await fetch("/health");
+          const data = await response.json();
+          healthStatus.textContent = `服务已连接 · STT=${data.stt_provider} · 曲库=${data.track_count}`;
+        } catch (error) {
+          healthStatus.textContent = "服务连接失败";
+        }
+      }
+
+      function setRecordingUI(recording, message) {
+        isRecording = recording;
+        recordBtn.classList.toggle("is-recording", recording);
+        recordBtn.setAttribute("aria-label", recording ? "停止语音输入" : "开始语音输入");
+        recordBtn.setAttribute("title", recording ? "再次点击停止识别" : "点击开始说话");
+        recordBtn.textContent = recording ? "■" : "🎤";
+        if (message) {
+          recordingStatus.textContent = message;
+        }
+      }
+
+      async function transcribeBlob(blob) {
+        const formData = new FormData();
+        formData.append("file", blob, "speech.webm");
+        const response = await fetch("/api/transcribe", {
+          method: "POST",
+          body: formData,
+        });
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(errorText || "语音转文字失败");
+        }
+        return response.json();
+      }
+
+      async function submitAgent() {
+        submitBtn.disabled = true;
+        submitBtn.textContent = "处理中...";
+        try {
+          const formData = new FormData();
+          formData.append("user_id", document.getElementById("userId").value.trim() || "demo-user");
+          formData.append("text", textInput.value.trim());
+
+          const response = await fetch("/api/agent/run", {
+            method: "POST",
+            body: formData,
+          });
+          const data = await response.json();
+          transcriptionOutput.textContent = JSON.stringify(data.transcription, null, 2);
+          profileOutput.textContent = JSON.stringify(data.profile, null, 2);
+          diagnosisOutput.textContent = JSON.stringify(data.diagnosis, null, 2);
+          renderTracks(data.recommended_tracks);
+        } catch (error) {
+          diagnosisOutput.textContent = String(error);
+        } finally {
+          submitBtn.disabled = false;
+          submitBtn.textContent = "提交给 Agent";
+        }
+      }
+
+      async function startMediaRecorderMode() {
+        mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaChunks = [];
+        mediaRecorder = new MediaRecorder(mediaStream);
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data && event.data.size > 0) {
+            mediaChunks.push(event.data);
+          }
+        };
+        mediaRecorder.onstop = async () => {
+          try {
+            const blob = new Blob(mediaChunks, { type: mediaRecorder.mimeType || "audio/webm" });
+            recordingStatus.textContent = "正在把录音转成文字...";
+            const result = await transcribeBlob(blob);
+            textInput.value = [speechPrefix, result.transcript.trim()].filter(Boolean).join(speechPrefix ? "\n" : "");
+            transcriptionOutput.textContent = JSON.stringify(result, null, 2);
+            setRecordingUI(false, "语音转文字完成，内容已写入同一个输入框，你可以继续修改。");
+          } catch (error) {
+            setRecordingUI(false, "录音已停止，但语音转文字失败。");
+            diagnosisOutput.textContent = String(error);
+          } finally {
+            if (mediaStream) {
+              mediaStream.getTracks().forEach((track) => track.stop());
+            }
+            mediaStream = null;
+            mediaRecorder = null;
+            mediaChunks = [];
+          }
+        };
+        mediaRecorder.start();
+        setRecordingUI(true, "正在录音中，再次点击麦克风会停止并转文字。");
+      }
+
+      function stopRealtimeRecognition() {
+        if (recognition) {
+          recognition.stop();
+        }
+      }
+
+      function setupSpeechRecognition() {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        useRealtimeRecognition = Boolean(SpeechRecognition);
+
+        if (useRealtimeRecognition) {
+          recognition = new SpeechRecognition();
+          recognition.lang = "zh-CN";
+          recognition.interimResults = true;
+          recognition.continuous = true;
+
+          recognition.onstart = () => {
+            setRecordingUI(true, "正在实时识别，说话内容会实时写进同一个输入框。");
+          };
+
+          recognition.onresult = (event) => {
+            let transcript = "";
+            for (let i = 0; i < event.results.length; i++) {
+              transcript += event.results[i][0].transcript;
+            }
+            textInput.value = [speechPrefix, transcript.trim()].filter(Boolean).join(speechPrefix ? "\n" : "");
+          };
+
+          recognition.onend = () => {
+            setRecordingUI(false, "语音识别已停止，你可以继续修改同一个输入框里的文字。");
+          };
+
+          recognition.onerror = async () => {
+            setRecordingUI(false, "浏览器实时识别失败，正在切换到录音后转文字模式。");
+            useRealtimeRecognition = false;
+            try {
+              await startMediaRecorderMode();
+            } catch (error) {
+              diagnosisOutput.textContent = String(error);
+              setRecordingUI(false, "无法启用麦克风，请检查浏览器权限。");
+            }
+          };
+        } else {
+          recordingStatus.textContent = "当前浏览器不支持实时识别，点击麦克风后会先录音，停止后自动转成文字。";
+        }
+
+        recordBtn.onclick = async () => {
+          if (isRecording) {
+            if (useRealtimeRecognition) {
+              stopRealtimeRecognition();
+            } else if (mediaRecorder && mediaRecorder.state !== "inactive") {
+              mediaRecorder.stop();
+              setRecordingUI(true, "正在停止录音...");
+            }
+            return;
+          }
+
+          speechPrefix = textInput.value.trim();
+          try {
+            if (useRealtimeRecognition) {
+              recognition.start();
+            } else {
+              await startMediaRecorderMode();
+            }
+          } catch (error) {
+            diagnosisOutput.textContent = String(error);
+            setRecordingUI(false, "无法开始语音输入，请检查麦克风权限。");
+          }
+        };
+      }
+
+      submitBtn.onclick = submitAgent;
+      refreshHealth();
+      setupSpeechRecognition();
+    </script>
+  </body>
+</html>
