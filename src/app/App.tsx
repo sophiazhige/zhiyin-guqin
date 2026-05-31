@@ -745,7 +745,7 @@ export default function App() {
     <IntakeProvider>
     <AudioProvider value={audio}>
     <NavContext.Provider value={navValue}>
-    <div className="min-h-screen bg-[#1F1A17] flex items-center justify-center p-12 overflow-hidden">
+    <div className="min-h-screen bg-[#E7DED0] flex items-center justify-center p-12 overflow-hidden">
       <PageFlip currentPage={page}>
         {/* 0: Welcome */}
         <ScreenWelcome onStart={next} onProfile={() => goTo(PAGES.MY)} />
